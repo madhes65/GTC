@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gold Scan Engine</title>
+  <style>
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    :root {
+      --hdr:      #7C6B35;
+      --bg:       #F7F5EF;
+      --card:     #FFFFFF;
+      --bdr:      #E5E2D8;
+      --text:     #1A1A1A;
+      --muted:    #6B7280;
+      --amber:    #9A7B1A;
+      --green:    #16A34A;
+      --green-lt: #F0FAF4;
+      --shadow:   0 1px 4px rgba(0,0,0,.09);
+    }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+           background:var(--bg); color:var(--text); font-size:13px; }
+
+    /* ── Header ──────────────────────────────────────────────── */
+    .hdr { background:var(--hdr); padding:12px 14px; display:flex; align-items:center;
+           gap:10px; box-shadow:0 2px 6px rgba(0,0,0,.25); }
+    .hdr h1 { flex:1; font-size:17px; font-weight:700; color:#fff; }
+    .hbtn { background:none; border:none; color:#fff; font-size:20px; cursor:pointer;
+            padding:4px 7px; border-radius:6px; line-height:1; touch-action:manipulation; }
+    .hbtn:hover { background:rgba(255,255,255,.15); }
+    .hbtn:disabled { opacity:.45; cursor:not-allowed; }
+    .spin { animation:spin .9s linear infinite; display:inline-block; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ── Progress ────────────────────────────────────────────── */
+    .prog-wrap { height:3px; background:#E5E2D8; }
+    .prog-bar  { height:3px; background:var(--amber); width:0%; transition:width .4s; }
+    .prog-msg  { font-size:11px; color:var(--muted); padding:4px 12px; min-height:18px; }
+
+    /* ── Portal badges ───────────────────────────────────────── */
+    .portal-status { display:flex; flex-wrap:wrap; gap:5px; padding:6px 12px 0; }
+    .ps-badge { border-radius:20px; padding:2px 10px; font-size:11px; font-weight:600; color:#fff; }
+
+    /* ── Filters ─────────────────────────────────────────────── */
+    .filters { background:var(--card); border-bottom:1px solid var(--bdr); padding:10px 12px; }
+    .fg { margin-bottom:8px; }
+    .fg:last-child { margin-bottom:0; }
+    .flabel { font-size:10px; font-weight:700; color:var(--muted);
+              text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+    .chips { display:flex; flex-wrap:wrap; gap:5px; }
+    .chip { border:1.5px solid #C9C4B2; background:#fff; color:var(--text); border-radius:20px;
+            padding:4px 11px; font-size:11.5px; cursor:pointer; transition:all .15s;
+            white-space:nowrap; touch-action:manipulation; }
+    .chip:hover  { border-color:var(--hdr); color:var(--hdr); }
+    .chip.active { background:#1C1C1C; border-color:#1C1C1C; color:#fff; font-weight:600; }
+
+    /* ── Toolbar ─────────────────────────────────────────────── */
+    .toolbar { display:flex; align-items:center; gap:8px; padding:7px 12px;
+               background:var(--card); border-bottom:1px solid var(--bdr); flex-wrap:wrap; }
+    .summary { font-size:11.5px; color:var(--muted); flex:1; min-width:100px; }
+    .summary strong { color:var(--text); }
+    .sort-sel { border:1.5px solid #C9C4B2; border-radius:8px; padding:5px 9px;
+                font-size:11.5px; background:var(--bg); color:var(--text); cursor:pointer; }
+    .search-box { border:1.5px solid #C9C4B2; border-radius:8px; padding:5px 10px;
+                  font-size:12px; background:var(--bg); color:var(--text); width:150px; max-width:100%; }
+    .search-box:focus { outline:none; border-color:var(--hdr); }
+
+    /* ── Cards grid ──────────────────────────────────────────── */
+    .cards-wrap { padding:10px 10px 80px; }
+    .cards-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
+
+    /* ── Product card ────────────────────────────────────────── */
+    .pcard { background:var(--card); border-radius:12px; box-shadow:var(--shadow);
+             border:1px solid var(--bdr); overflow:hidden; }
+
+    /* Card header */
+    .card-top { padding:11px 13px 9px; border-bottom:1px solid var(--bdr); }
+    .card-top-row { display:flex; align-items:flex-start; justify-content:space-between;
+                    gap:8px; margin-bottom:4px; }
+    .brand-name { font-size:14px; font-weight:700; color:var(--amber); }
+    .purity-badge { background:#1C1C1C; color:#D4AA2A; font-size:10px; font-weight:700;
+                    border-radius:20px; padding:2px 9px; white-space:nowrap; flex-shrink:0; }
+    .prod-title { font-size:12px; color:var(--text); line-height:1.4; margin-bottom:3px; }
+    .wt-line { font-size:11px; color:var(--muted); }
+
+    /* Portal rows */
+    .portal-row { display:flex; align-items:center; padding:9px 13px;
+                  border-top:1px solid #F0EDE5; text-decoration:none; color:inherit;
+                  transition:background .1s; cursor:pointer; }
+    .portal-row:hover { background:#FAFAF5; }
+    .portal-row.best  { background:var(--green-lt); border-left:3px solid var(--green); }
+    .portal-row.best:hover { background:#E8F8EF; }
+
+    .row-left  { flex:1; min-width:0; }
+    .row-right { text-align:right; flex-shrink:0; padding-left:8px; }
+
+    .portal-name-row { display:flex; align-items:center; gap:6px; margin-bottom:2px; }
+    .portal-badge { display:inline-block; border-radius:3px; padding:1px 6px;
+                    font-size:10px; font-weight:600; color:#fff; white-space:nowrap; }
+    .best-badge { background:var(--green); color:#fff; font-size:9px; font-weight:700;
+                  border-radius:3px; padding:1px 5px; white-space:nowrap; }
+    .ppg-line { font-size:11px; color:var(--muted); }
+
+    .price-main { font-size:17px; font-weight:800; color:var(--text); }
+    .mrp-line { font-size:10px; color:var(--muted); text-decoration:line-through; }
+
+    /* Offers inside portal row */
+    .offers { display:flex; flex-wrap:wrap; gap:3px; margin-top:4px; }
+    .offer-tag { display:inline-block; border-radius:3px; padding:1px 5px; font-size:10px;
+                 border:1px solid #BFDBFE; background:#EFF6FF; color:#1D4ED8;
+                 max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .offer-tag.bank   { background:#F0FDF4; color:#166534; border-color:#BBF7D0; }
+    .offer-tag.coupon { background:#FDF4FF; color:#7E22CE; border-color:#E9D5FF; }
+    .offer-tag.deal   { background:#FFFBEB; color:#92400E; border-color:#FDE68A; }
+
+    /* ── Empty ───────────────────────────────────────────────── */
+    .empty { text-align:center; padding:50px 20px; color:var(--muted); }
+    .empty .icon { font-size:44px; margin-bottom:10px; }
+    .empty h2 { font-size:15px; color:var(--text); margin-bottom:6px; }
+
+    /* ── FAB ─────────────────────────────────────────────────── */
+    .fab { position:fixed; bottom:18px; right:14px; background:var(--hdr); color:#fff;
+           border:none; border-radius:28px; padding:12px 18px; font-size:13px; font-weight:600;
+           box-shadow:0 4px 16px rgba(0,0,0,.22); cursor:pointer; display:flex;
+           align-items:center; gap:7px; z-index:10; transition:transform .15s; touch-action:manipulation; }
+    .fab:hover    { transform:translateY(-2px); }
+    .fab:disabled { opacity:.6; cursor:not-allowed; transform:none; }
+
+    @media(max-width:480px){
+      .hdr h1 { font-size:15px; }
+      .chip { font-size:11px; padding:3px 9px; }
+      .cards-grid { grid-template-columns:1fr; }
+      .search-box { width:110px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="hdr">
+  <button class="hbtn">☰</button>
+  <h1>🪙 Gold Scan Engine</h1>
+  <button class="hbtn" id="scanBtn" title="Scan">&#x21BB;</button>
+</div>
+<div class="prog-wrap"><div class="prog-bar" id="progBar"></div></div>
+<div class="prog-msg" id="progMsg"></div>
+<div class="portal-status" id="portalStatus"></div>
+
+<!-- Filters -->
+<div class="filters">
+  <div class="fg">
+    <div class="flabel">Portal</div>
+    <div class="chips">
+      <button class="chip active" data-f="portal" data-v="all">All</button>
+      <button class="chip" data-f="portal" data-v="amazon">Amazon India</button>
+      <button class="chip" data-f="portal" data-v="flipkart">Flipkart</button>
+      <button class="chip" data-f="portal" data-v="tatacliq">Tata CLiQ</button>
+      <button class="chip" data-f="portal" data-v="ajio">Ajio</button>
+    </div>
+  </div>
+  <div class="fg">
+    <div class="flabel">Brand</div>
+    <div class="chips">
+      <button class="chip active" data-f="brand" data-v="all">All</button>
+      <button class="chip" data-f="brand" data-v="mmtcpamp">MMTC-PAMP</button>
+      <button class="chip" data-f="brand" data-v="bangalorerefinery">Bangalore Refinery</button>
+      <button class="chip" data-f="brand" data-v="malabar">Malabar Gold</button>
+      <button class="chip" data-f="brand" data-v="kalyan">Kalyan Jewellers</button>
+      <button class="chip" data-f="brand" data-v="joyalukkas">Joyalukkas</button>
+      <button class="chip" data-f="brand" data-v="muthoot">Muthoot</button>
+      <button class="chip" data-f="brand" data-v="other">Other</button>
+    </div>
+  </div>
+  <div class="fg">
+    <div class="flabel">Purity</div>
+    <div class="chips">
+      <button class="chip active" data-f="purity" data-v="all">All</button>
+      <button class="chip" data-f="purity" data-v="24K">24K (999)</button>
+      <button class="chip" data-f="purity" data-v="22K">22K (916)</button>
+    </div>
+  </div>
+  <div class="fg">
+    <div class="flabel">Weight</div>
+    <div class="chips">
+      <button class="chip active" data-f="weight" data-v="all">All</button>
+      <button class="chip" data-f="weight" data-v="0.5">0.5g</button>
+      <button class="chip" data-f="weight" data-v="1">1g</button>
+      <button class="chip" data-f="weight" data-v="2">2g</button>
+      <button class="chip" data-f="weight" data-v="4">4g</button>
+      <button class="chip" data-f="weight" data-v="5">5g</button>
+      <button class="chip" data-f="weight" data-v="8">8g</button>
+      <button class="chip" data-f="weight" data-v="10">10g</button>
+      <button class="chip" data-f="weight" data-v="20">20g</button>
+      <button class="chip" data-f="weight" data-v="50">50g</button>
+      <button class="chip" data-f="weight" data-v="100">100g</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar" id="toolbar" style="display:none">
+  <div class="summary" id="summaryLine"></div>
+  <select class="sort-sel" id="sortSel">
+    <option value="ppg_asc">₹/g ↑ (cheapest first)</option>
+    <option value="ppg_desc">₹/g ↓</option>
+    <option value="price_asc">Price ↑</option>
+    <option value="price_desc">Price ↓</option>
+    <option value="weight_asc">Weight ↑</option>
+    <option value="brand_az">Brand A–Z</option>
+  </select>
+  <input class="search-box" id="searchBox" type="search" placeholder="Search…"/>
+</div>
+
+<!-- Cards -->
+<div class="cards-wrap">
+  <div class="empty" id="emptyState">
+    <div class="icon">🪙</div>
+    <h2>Gold Coins &amp; Bars — Live Prices</h2>
+    <p>MMTC-PAMP · Bangalore Refinery · Malabar · Kalyan · Joyalukkas · Muthoot</p>
+    <p style="margin-top:8px;font-size:11.5px;color:#A89B6A">Tap ↻ to scan portals</p>
+  </div>
+  <div class="cards-grid" id="cardsGrid" style="display:none"></div>
+</div>
+
+<button class="fab" id="fab"><span id="fabIcon">🔍</span><span id="fabLabel">Scan All Portals</span></button>
+
+<script>
+let allItems=[], filters={portal:'all',brand:'all',purity:'all',weight:'all'};
+let searchQ='', sortKey='ppg_asc', isScanning=false;
+
+const $=id=>document.getElementById(id);
+const scanBtn=$('scanBtn'),fab=$('fab'),fabIcon=$('fabIcon'),fabLabel=$('fabLabel');
+const progBar=$('progBar'),progMsg=$('progMsg'),portalStatus=$('portalStatus');
+const emptyState=$('emptyState'),cardsGrid=$('cardsGrid'),toolbar=$('toolbar'),summaryLine=$('summaryLine');
+
+[$('scanBtn'),$('fab')].forEach(b=>b.addEventListener('click',startScan));
+$('sortSel').addEventListener('change',e=>{sortKey=e.target.value;if(allItems.length)render();});
+$('searchBox').addEventListener('input',e=>{searchQ=e.target.value.toLowerCase();if(allItems.length)render();});
+
+function startScan(){
+  if(isScanning)return;
+  isScanning=true; allItems=[];
+  setScanning(true);
+  emptyState.style.display='none'; cardsGrid.style.display='none'; toolbar.style.display='none';
+  portalStatus.innerHTML=''; progBar.style.width='0%';
+  const src=new EventSource('/api/scan');
+  src.onmessage=e=>{
+    const msg=JSON.parse(e.data);
+    if(msg.type==='progress'){
+      progBar.style.width=Math.round(msg.progress*85)+'%';
+      progMsg.textContent=msg.message||'';
+      ensureBadge(msg.portalId,msg.portalName,msg.portalColor);
+    }
+    if(msg.type==='portal_done'){
+      allItems.push(...msg.items);
+      updateBadge(msg.portalId,msg.count,msg.portalColor);
+      render(); cardsGrid.style.display='grid'; toolbar.style.display='flex';
+    }
+    if(msg.type==='portal_error') updateBadge(msg.portalId,'✗','#9CA3AF');
+    if(msg.type==='done'||msg.type==='error'){
+      progBar.style.width='100%';
+      progMsg.textContent=msg.type==='error'?'⚠ '+msg.message:'';
+      setTimeout(()=>{progBar.style.width='0%';progMsg.textContent='';},1400);
+      setScanning(false); src.close();
+    }
+  };
+  src.onerror=()=>{progMsg.textContent='⚠ Connection lost.';setScanning(false);src.close();};
+}
+
+function setScanning(on){
+  isScanning=on; [scanBtn,fab].forEach(b=>b.disabled=on);
+  fabIcon.textContent=on?'⏳':'🔍'; fabLabel.textContent=on?'Scanning…':'Scan All Portals';
+  on?fabIcon.classList.add('spin'):fabIcon.classList.remove('spin');
+}
+
+function ensureBadge(id,name,color){
+  if($('pb-'+id))return;
+  const b=document.createElement('div');
+  b.className='ps-badge'; b.id='pb-'+id; b.style.background=color||'#9CA3AF';
+  b.innerHTML=`${esc(name)} <span id="pbc-${id}">…</span>`;
+  portalStatus.appendChild(b);
+}
+function updateBadge(id,count,color){
+  const c=$('pbc-'+id); if(c)c.textContent=count;
+  const b=$('pb-'+id); if(b&&color)b.style.background=color;
+}
+
+// ── Detect purity client-side (fallback if server didn't set it) ──────────────
+function getPurity(item){
+  if(item.purity&&item.purity!=='—') return item.purity;
+  const t=(item.title||'').toLowerCase();
+  if(/24\s*k(?:t|arat)?|999\.9|999 purity/.test(t)) return '24K';
+  if(/22\s*k(?:t|arat)?|916/.test(t)) return '22K';
+  return '—';
+}
+
+// ── Group items by brand + weight + purity ────────────────────────────────────
+function groupItems(items){
+  const map=new Map();
+  for(const item of items){
+    const purity=getPurity(item);
+    const wKey=item.weight!=null?Math.round(item.weight*10):'X';
+    const key=`${item.brandId}||${wKey}||${purity}`;
+    if(!map.has(key)){
+      map.set(key,{
+        brand:item.brand, brandId:item.brandId,
+        weight:item.weight, weightLabel:item.weightLabel||'—',
+        purity, title:item.title,
+        portals:[]
+      });
+    }
+    const g=map.get(key);
+    // Update title to the best (longest meaningful) one
+    if((item.title||'').length>(g.title||'').length) g.title=item.title;
+    // Avoid duplicate portals (keep cheapest if same portal appears)
+    const existing=g.portals.find(p=>p.portalId===item.portal);
+    if(!existing){
+      g.portals.push({
+        portalId:item.portal, portalName:item.portalName, portalColor:item.portalColor,
+        price:item.price, pricePerGram:item.pricePerGram,
+        mrp:item.mrp, offers:item.offers||[], url:item.url||''
+      });
+    } else if(item.price<existing.price){
+      // Update to cheaper price from same portal
+      existing.price=item.price; existing.pricePerGram=item.pricePerGram;
+      existing.mrp=item.mrp; existing.offers=item.offers||[]; existing.url=item.url||'';
+    }
+  }
+  // Sort portals within each group by price
+  for(const g of map.values())
+    g.portals.sort((a,b)=>a.price-b.price);
+  return Array.from(map.values());
+}
+
+function getFiltered(){
+  let items=allItems.filter(r=>r.price>0);
+  if(filters.portal!=='all') items=items.filter(r=>r.portal===filters.portal);
+  if(filters.brand !=='all') items=items.filter(r=>r.brandId===filters.brand);
+  if(filters.purity!=='all') items=items.filter(r=>getPurity(r)===filters.purity);
+  if(filters.weight!=='all'){const w=parseFloat(filters.weight);items=items.filter(r=>r.weight&&Math.abs(r.weight-w)<0.01);}
+  if(searchQ) items=items.filter(r=>(r.title||'').toLowerCase().includes(searchQ)||(r.brand||'').toLowerCase().includes(searchQ));
+
+  const groups=groupItems(items);
+
+  // Sort groups by best portal's metric
+  groups.sort((a,b)=>{
+    const ap=a.portals[0]||{}, bp=b.portals[0]||{};
+    switch(sortKey){
+      case 'ppg_asc':    return (ap.pricePerGram||Infinity)-(bp.pricePerGram||Infinity);
+      case 'ppg_desc':   return (bp.pricePerGram||Infinity)-(ap.pricePerGram||Infinity);
+      case 'price_asc':  return (ap.price||Infinity)-(bp.price||Infinity);
+      case 'price_desc': return (bp.price||Infinity)-(ap.price||Infinity);
+      case 'weight_asc': return (a.weight||Infinity)-(b.weight||Infinity);
+      case 'brand_az':   return (a.brand||'').localeCompare(b.brand||'');
+      default: return 0;
+    }
+  });
+  return groups;
+}
+
+const CARD_RE=/hdfc infinia|infinia|bonvoy|axis magnus|magnus|axis atlas|\bsbi\b|\brbl\b|\bicici\b|amex/i;
+const BANK_RE=/hdfc|sbi|icici|axis|kotak|bank|emi/i;
+function offerCls(t){if(CARD_RE.test(t))return '';if(BANK_RE.test(t))return 'bank';if(/coupon|code|promo/i.test(t))return 'coupon';return 'deal';}
+
+function render(){
+  const groups=getFiltered();
+  const nPortals=new Set(allItems.map(r=>r.portal)).size;
+  const totalItems=allItems.length;
+  summaryLine.innerHTML=`<strong>${groups.length}</strong> products &nbsp;·&nbsp; <strong>${totalItems}</strong> listings &nbsp;·&nbsp; <strong>${nPortals}</strong> portals`;
+
+  if(!groups.length){
+    cardsGrid.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="icon">🔍</div><p>No results for selected filters.</p></div>`;
+    return;
+  }
+
+  cardsGrid.innerHTML=groups.map(g=>{
+    const titleShort=(g.title||'').length>65?(g.title||'').slice(0,63)+'…':(g.title||'');
+    const wt=g.weightLabel&&g.weightLabel!=='—'?g.weightLabel:(g.weight?g.weight+'g':'');
+    const purityLabel=g.purity==='24K'?'24K (999)':g.purity==='22K'?'22K (916)':g.purity;
+
+    const portalRowsHtml=g.portals.map((p,i)=>{
+      const isBest=i===0&&g.portals.length>1;
+      const ppg=p.pricePerGram?'₹'+fmtN(p.pricePerGram)+'/g':'';
+      const offerTags=(p.offers||[]).slice(0,2).map(o=>`<span class="offer-tag ${offerCls(o)}" title="${esc(o)}">${esc(o.length>40?o.slice(0,38)+'…':o)}</span>`).join('');
+      return `<a class="portal-row${isBest?' best':''}" href="${esc(p.url||'#')}" target="_blank" rel="noopener" onclick="${p.url?'':'event.preventDefault()'}">
+        <div class="row-left">
+          <div class="portal-name-row">
+            <span class="portal-badge" style="background:${p.portalColor||'#6B7280'}">${esc(p.portalName||p.portalId)}</span>
+            ${isBest?'<span class="best-badge">★ Best</span>':''}
+          </div>
+          ${ppg?`<div class="ppg-line">${ppg}</div>`:''}
+          ${offerTags?`<div class="offers">${offerTags}</div>`:''}
+        </div>
+        <div class="row-right">
+          <div class="price-main">${fmt(p.price)}</div>
+          ${p.mrp&&p.mrp>p.price?`<div class="mrp-line">MRP ${fmt(p.mrp)}</div>`:''}
+        </div>
+      </a>`;
+    }).join('');
+
+    return `<div class="pcard">
+      <div class="card-top">
+        <div class="card-top-row">
+          <span class="brand-name">${esc(g.brand||'Other')}</span>
+          <span class="purity-badge">${esc(purityLabel)}</span>
+        </div>
+        ${titleShort?`<div class="prod-title">${esc(titleShort)}</div>`:''}
+        ${wt?`<div class="wt-line">Weight: ${esc(wt)}</div>`:''}
+      </div>
+      ${portalRowsHtml}
+    </div>`;
+  }).join('');
+}
+
+document.querySelectorAll('.chip').forEach(chip=>{
+  chip.addEventListener('click',()=>{
+    const f=chip.dataset.f,v=chip.dataset.v;
+    document.querySelectorAll(`[data-f="${f}"]`).forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active'); filters[f]=v;
+    if(allItems.length)render();
+  });
+});
+
+function fmt(n){return n==null||isNaN(n)?'—':'₹'+Number(n).toLocaleString('en-IN',{maximumFractionDigits:0});}
+function fmtN(n){return n==null||isNaN(n)?'—':Number(n).toLocaleString('en-IN',{maximumFractionDigits:2});}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+</script>
+</body>
+</html>
